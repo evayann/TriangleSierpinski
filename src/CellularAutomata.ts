@@ -12,8 +12,6 @@ export abstract class CellularAutomata {
         this.width = width;
         this.height = height;
         this.currGeneration = new Array(height).fill(False).map(() => new Array(width).fill(False));
-
-        //setInterval(this.update.bind(this), 1000);
     }
 
     abstract computeGeneration(): void;
@@ -37,10 +35,17 @@ export abstract class CellularAutomata {
         this.computeGeneration();
     }
 
+    public addPosition(x: number, y: number): void {
+        this.pos = [x, y];
+    }
+
+    public removePosition(): void {
+        this.pos = null;
+    }
+
     public getAutomata(): number[][] {
         return this.currGeneration;
     }
-
 }
 
 export class NaifCA extends CellularAutomata {

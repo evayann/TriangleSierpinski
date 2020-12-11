@@ -2615,7 +2615,6 @@ class CellularAutomata {
         this.width = width;
         this.height = height;
         this.currGeneration = new Array(height).fill(False).map(() => new Array(width).fill(False));
-        //setInterval(this.update.bind(this), 1000);
     }
     rule(p, q, r) {
         return p ^ (p && q || r);
@@ -2630,6 +2629,12 @@ class CellularAutomata {
         if (this.pos != null)
             this.addCell(this.pos[0], this.pos[1]);
         this.computeGeneration();
+    }
+    addPosition(x, y) {
+        this.pos = [x, y];
+    }
+    removePosition() {
+        this.pos = null;
     }
     getAutomata() {
         return this.currGeneration;
@@ -2785,107 +2790,138 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var p5__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(p5__WEBPACK_IMPORTED_MODULE_1__);
 ;
 
-let WIDTH = 1700;
-let HEIGHT = 900;
+let p;
+let fillColor;
+let strokeColor;
+let backgroundColor;
+let alpha;
+let state = true;
 class ParametersGUI {
     constructor(params) {
-        this.listeners = {};
         this.gui = new dat_gui__WEBPACK_IMPORTED_MODULE_0__.GUI();
-        this.params = params;
-        const handle = name => value => {
-            this.triggerChange(name, value);
-        };
         const guiCanvas = this.gui.addFolder("Canvas");
         guiCanvas
-            .add(params, "width")
-            .min(10)
-            .max(1920)
-            .step(1)
-            .onChange(handle("width"));
+            .add(params, "widthNbBlock", 100, 1500, 10)
+            .onChange(value => params["setWidthNbBlock"](value));
         guiCanvas
-            .add(params, "height")
-            .min(10)
-            .max(1080)
-            .step(1)
-            .onChange(handle("height"));
+            .add(params, "heightNbBlock", 100, 1500, 10)
+            .onChange(value => params["setHeightNbBlock"](value));
         guiCanvas.open();
+        const guiColor = this.gui.addFolder("Colors");
+        guiColor
+            .addColor(params, "fill")
+            .onChange(value => fillColor = p.color(value));
+        guiColor
+            .addColor(params, "stroke")
+            .onChange(value => strokeColor = p.color(value));
+        guiColor
+            .addColor(params, "background")
+            .onChange(value => {
+            backgroundColor = p.color(value);
+            backgroundColor.setAlpha(alpha);
+        });
+        guiColor
+            .add(params, "alphaGradient", 0, 255, 1)
+            .onChange(value => {
+            alpha = value;
+            backgroundColor.setAlpha(alpha);
+        });
+        guiColor.open();
         const guiState = this.gui.addFolder("State");
+        let st = guiState
+            .add(params, "stop")
+            .name("Pause")
+            .onChange(() => {
+            state = !state;
+            (state) ? st.name("Pause") : st.name("Play");
+        });
+        guiState
+            .add(params, "version", params["versions"])
+            .onChange(value => params["updateVersion"](value))
+            .name("Version");
+        guiState
+            .add(params, "timeForOneGeneration", 1, 1000, 1)
+            .onChange(params["updateTimeGeneration"])
+            .name("One generation (ms)");
         guiState
             .add(params, "reset")
             .name("Reset");
         guiState.open();
-        this.updateDisplay(this.gui);
-    }
-    updateDisplay(gui) {
-        for (let i in gui.__controllers) {
-            gui.__controllers[i].updateDisplay();
-        }
-        for (let f in gui.__folders) {
-            this.updateDisplay(gui.__folders[f]);
-        }
-    }
-    triggerChange(name, value) {
-        const type = "change";
-        this.listeners[type] &&
-            this.listeners[type].forEach(callback => callback({ type, name, value }));
     }
 }
 class AutomataGUI {
     constructor(ca) {
-        this.isUpdate = false;
         this.ca = ca;
-        this.caseW = (WIDTH / ca.height);
-        this.caseH = (HEIGHT / ca.height);
+        this.caseW = window.innerWidth / ca.width;
+        this.caseH = window.innerHeight / ca.height;
         let sketch = (p) => {
             p.setup = () => {
                 p.frameRate(60);
-                let canvas = p.createCanvas(p.windowWidth, p.windowHeight);
-                let fct = function () {
+                let canvas = p.createCanvas(window.innerWidth, window.innerHeight);
+                let fct = () => {
                     let x = Math.floor(p.mouseX / this.caseW);
                     let y = Math.floor(p.mouseY / this.caseH);
-                    if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT)
-                        this.ca.pos = [x, y];
+                    if (x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight)
+                        this.ca.addPosition(x, y);
                 };
                 canvas.mouseOver(fct.bind(this));
                 canvas.mouseMoved(fct.bind(this));
+                canvas.mouseOut(() => this.ca.removePosition());
             };
             p.windowResized = () => {
-                p.resizeCanvas(p.windowWidth, p.windowHeight);
+                p.resizeCanvas(window.innerWidth, window.innerHeight);
             };
             p.draw = () => {
-                // Update only when automata is change
-                if (!this.update)
-                    return;
-                p.clear();
-                this.ca.update();
+                p.fill(backgroundColor);
+                p.rect(0, 0, window.innerWidth, window.innerHeight);
+                p.fill(fillColor);
+                p.stroke(strokeColor);
                 let automata = this.ca.getAutomata();
-                p.fill("red");
                 for (let i = 0; i < this.ca.height; i++) {
                     for (let j = 0; j < this.ca.width; j++) {
                         if (automata[i][j]) {
-                            //  Draw rect
                             p.rect(j * this.caseW, i * this.caseH, this.caseW, this.caseH);
                         }
                     }
                 }
-                this.isUpdate = false;
+                p.noLoop();
             };
         };
-        new p5__WEBPACK_IMPORTED_MODULE_1__(sketch);
+        p = new p5__WEBPACK_IMPORTED_MODULE_1__(sketch);
+    }
+    setAutomata(ca) {
+        this.ca = ca;
+        this.caseW = window.innerWidth / ca.width;
+        this.caseH = window.innerHeight / ca.height;
     }
     update() {
-        this.isUpdate = true;
+        p.loop();
+    }
+    reset() {
+        p.clear();
+        p.loop();
     }
 }
 class GUI {
     constructor(ca, parameters) {
         console.log("Create GUI");
         this.automataGUI = new AutomataGUI(ca);
+        fillColor = p.color(parameters["fill"]);
+        strokeColor = p.color(parameters["stroke"]);
+        alpha = parameters["alphaGradient"];
+        backgroundColor = p.color(parameters["background"]);
+        backgroundColor.setAlpha(alpha);
         this.paramGUI = new ParametersGUI(parameters);
         console.log("GUI created");
     }
+    setAutomata(ca) {
+        this.automataGUI.setAutomata(ca);
+    }
     update() {
         this.automataGUI.update();
+    }
+    reset() {
+        this.automataGUI.reset();
     }
 }
 
@@ -2910,22 +2946,80 @@ __webpack_require__.r(__webpack_exports__);
 ;
 
 
+let isStop = true;
+let timeForOneGeneration = 1;
+let updater;
+let currentVersion;
+let widthNbBlock;
+let heightNbBlock;
+function start(ca, gui, stats) {
+    updater = setInterval(() => {
+        update(ca, gui, stats);
+    }, timeForOneGeneration);
+}
+function stop() {
+    clearInterval(updater);
+}
 function update(ca, gui, stats) {
-    setInterval(() => {
-        stats.begin();
-        ca.update();
-        stats.end();
-        gui.update();
-    }, 1);
+    stats.begin();
+    ca.update();
+    stats.end();
+    gui.update();
 }
 window.onload = () => {
     console.log("Loading");
-    let ca = new _CellularAutomata__WEBPACK_IMPORTED_MODULE_2__.BuffSwapNoModCA(750, 750);
-    let gui = new _GUI__WEBPACK_IMPORTED_MODULE_1__.GUI(ca, { width: 300, height: 300, reset: () => ca.reset() });
+    const switchState = () => {
+        isStop = !isStop;
+        (isStop) ? stop() : start(ca, gui, stats);
+    };
+    const cellAutomata = { BuffSwapNoModCA: () => new _CellularAutomata__WEBPACK_IMPORTED_MODULE_2__.BuffSwapNoModCA(widthNbBlock, heightNbBlock),
+        NaifCA: () => new _CellularAutomata__WEBPACK_IMPORTED_MODULE_2__.NaifCA(widthNbBlock, heightNbBlock),
+        BuffSwapCA: () => new _CellularAutomata__WEBPACK_IMPORTED_MODULE_2__.BuffSwapCA(widthNbBlock, heightNbBlock),
+        LittleBufCA: () => new _CellularAutomata__WEBPACK_IMPORTED_MODULE_2__.LittleBufCA(widthNbBlock, heightNbBlock)
+    };
+    const updateCellularAutomata = (version) => {
+        gui.reset();
+        switchState();
+        ca = cellAutomata[version]();
+        gui.setAutomata(ca);
+        switchState();
+    };
+    currentVersion = "BuffSwapNoModCA";
+    widthNbBlock = 500;
+    heightNbBlock = 500;
+    let ca = cellAutomata[currentVersion]();
+    let gui = new _GUI__WEBPACK_IMPORTED_MODULE_1__.GUI(ca, { widthNbBlock: widthNbBlock, heightNbBlock: heightNbBlock,
+        setWidthNbBlock: (nbW) => {
+            widthNbBlock = nbW;
+            updateCellularAutomata(currentVersion);
+        },
+        setHeightNbBlock: (nbH) => {
+            heightNbBlock = nbH;
+            updateCellularAutomata(currentVersion);
+        },
+        fill: "#863621",
+        stroke: "#863621",
+        background: "#204243",
+        alphaGradient: 255,
+        version: currentVersion,
+        versions: ["BuffSwapNoModCA", "BuffSwapCA", "LittleBufCA", "NaifCA"],
+        updateVersion: updateCellularAutomata,
+        stop: switchState,
+        timeForOneGeneration: 1,
+        updateTimeGeneration: (value) => {
+            timeForOneGeneration = value;
+            switchState();
+            switchState();
+        },
+        reset: () => {
+            ca.reset();
+            gui.reset();
+        }
+    });
     let stats = new (stats_js__WEBPACK_IMPORTED_MODULE_0___default())();
     stats.showPanel(0);
     document.body.appendChild(stats.domElement);
-    update(ca, gui, stats);
+    switchState();
 };
 
 
